@@ -1,13 +1,28 @@
 import httpx
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from mcp.server.fastmcp import FastMCP
 
-mcp = FastMCP("Dorar-Tafsir-MCP")
+app = FastAPI(
+    title="Dorar Tafsir API",
+    description="API لتفسير القرآن الكريم والبحث في الألفاظ لأغراض البحث الأكاديمي",
+    version="1.0.0"
+)
 
-@mcp.tool()
-async def get_ayah_tafsir(surah_number: int, ayah_number: int) -> dict:
-    """جلب التفسير المعتمد لآية محددة."""
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+@app.get("/", summary="التحقق من حالة السيرفر")
+async def root():
+    return {"status": "ok", "message": "Dorar Tafsir API is running"}
+
+@app.get("/tafsir", summary="جلب تفسير آية قرآنية")
+async def get_ayah_tafsir(surah_number: int, ayah_number: int):
+    """جلب التفسير المعتمد لآية محددة عبر رقم السورة ورقم الآية."""
     url = f"https://api.quran.com/api/v4/quran/tafsirs/16?verse_key={surah_number}:{ayah_number}"
     async with httpx.AsyncClient(timeout=10.0) as client:
         try:
@@ -19,16 +34,16 @@ async def get_ayah_tafsir(surah_number: int, ayah_number: int) -> dict:
                     "surah": surah_number,
                     "ayah": ayah_number,
                     "tafsir_text": tafsir_text,
-                    "source": "التفسير الميسر / الموسوعة القرآنية",
+                    "source": "التفسير الميسر",
                     "status": "success"
                 }
             return {"error": f"تعذر الجلب (رمز الحالة: {res.status_code})"}
         except Exception as e:
             return {"error": str(e)}
 
-@mcp.tool()
-async def search_dorar_tafsir(query: str) -> dict:
-    """البحث في نصوص التفسير والألفاظ القرآنية."""
+@app.get("/search", summary="البحث في الألفاظ والتفاسير")
+async def search_dorar_tafsir(query: str):
+    """البحث عن الكلمات والجذور اللغوية في النصوص القرآنية والتفسيرية."""
     search_url = f"https://api.quran.com/api/v4/search?query={query}&language=ar"
     async with httpx.AsyncClient(timeout=10.0) as client:
         try:
@@ -45,25 +60,8 @@ async def search_dorar_tafsir(query: str) -> dict:
                 return {
                     "query": query,
                     "results_count": len(parsed_results),
-                    "results": parsed_results,
-                    "source": "المحرك المعرفي المفتوح للقرآن والتفسير"
+                    "results": parsed_results
                 }
             return {"error": f"خطأ في البحث: {res.status_code}"}
         except Exception as e:
             return {"error": str(e)}
-
-app = FastAPI(title="Dorar Tafsir MCP")
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-app.mount("/mcp", mcp.sse_app)
-
-@app.get("/")
-async def root():
-    return {"status": "ok", "message": "Dorar Tafsir MCP Server is Running"}
