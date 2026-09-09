@@ -5,13 +5,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from mcp.server.fastmcp import FastMCP
 
 # 1. تهيئة خادم MCP
-mcp = FastMCP("Dorar Tafsir MCP")
+mcp = FastMCP("Dorar-Tafsir-MCP")
 
-# 2. أدوات استدعاء التفسير عبر APIs المفتوحة والموثوقة
+# 2. أدوات جلب التفسير والبحث
 @mcp.tool()
 async def get_ayah_tafsir(surah_number: int, ayah_number: int) -> dict:
-    """جلب التفسير المعتمد لآية محددة (تفسير الميسر / ابن كثير / الطبري)."""
-    # استخدام API التفسير المفتوح لتفادي حظر 403
+    """جلب التفسير المعتمد لآية محددة."""
     url = f"https://api.quran.com/api/v4/quran/tafsirs/16?verse_key={surah_number}:{ayah_number}"
     async with httpx.AsyncClient(timeout=10.0) as client:
         try:
@@ -56,26 +55,8 @@ async def search_dorar_tafsir(query: str) -> dict:
         except Exception as e:
             return {"error": str(e)}
 
-@mcp.tool()
-async def compare_tafsir_sources(surah_number: int, ayah_number: int, keywords: str = "") -> dict:
-    """أداة مخصصة للأطروحة: استخراج مادة التفسير ومقارنتها بالسياق النزولي واستعمالات السلف."""
-    data = await get_ayah_tafsir(surah_number, ayah_number)
-    if "error" in data:
-        return data
-
-    text = data.get("tafsir_text", "")
-    found_keywords = [kw for kw in keywords.split() if kw in text] if keywords else []
-
-    return {
-        "surah": surah_number,
-        "ayah": ayah_number,
-        "raw_text": text,
-        "highlighted_keywords": found_keywords,
-        "analysis_hint": "استخرج أقوال السلف وقارن بين المعنى اللغوي الجاهلي والسياق النزولي."
-    }
-
-# 3. إنشاء تطبيق FastAPI وإضافة CORS
-app = FastAPI(title="Dorar Tafsir MCP Endpoint")
+# 3. تطبيق FastAPI وإعداد CORS الكامل
+app = FastAPI(title="Dorar Tafsir MCP")
 
 app.add_middleware(
     CORSMiddleware,
@@ -85,7 +66,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.mount("/mcp", mcp.sse_app)
+# 4. ربط مسار SSE الصريح المباشر
+app.mount("/sse", mcp.sse_app)
 
 @app.get("/", response_class=HTMLResponse)
 async def landing_page():
@@ -104,8 +86,8 @@ async def landing_page():
     <body>
         <div class="container">
             <h1>خادم التفسير والدراسات الدلالية MCP</h1>
-            <p>رابط الموصل المباشر:</p>
-            <code>https://dorar-tafsir-mcp-1.onrender.com/mcp/sse</code>
+            <p>رابط الموصل المباشر الجديد:</p>
+            <code>https://dorar-tafsir-mcp-1.onrender.com/sse</code>
         </div>
     </body>
     </html>
