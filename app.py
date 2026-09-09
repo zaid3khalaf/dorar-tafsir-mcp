@@ -1,8 +1,9 @@
 import httpx
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from mcp.server.fastmcp import FastMCP
 
-# تهيئة خادم MCP
-mcp = FastMCP("Dorar-Tafsir-MCP", port=8000, host="0.0.0.0")
+mcp = FastMCP("Dorar-Tafsir-MCP")
 
 @mcp.tool()
 async def get_ayah_tafsir(surah_number: int, ayah_number: int) -> dict:
@@ -51,5 +52,18 @@ async def search_dorar_tafsir(query: str) -> dict:
         except Exception as e:
             return {"error": str(e)}
 
-if __name__ == "__main__":
-    mcp.run(transport="sse")
+app = FastAPI(title="Dorar Tafsir MCP")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+app.mount("/mcp", mcp.sse_app)
+
+@app.get("/")
+async def root():
+    return {"status": "ok", "message": "Dorar Tafsir MCP Server is Running"}
