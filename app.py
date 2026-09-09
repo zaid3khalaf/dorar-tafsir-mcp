@@ -1,26 +1,30 @@
-import os
 import urllib.parse
-import httpx
 from bs4 import BeautifulSoup
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 from mcp.server.fastmcp import FastMCP
+from curl_cffi import requests
 
-# 1. تهيئة خادم MCP باسم الموسوعة
+# 1. تهيئة خادم MCP
 mcp = FastMCP("Dorar Tafsir MCP")
 
-HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-}
 BASE_URL = "https://dorar.net/tafsir"
+
+# ترويسات هامة لتجاوز حظر 403
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+    "Accept-Language": "ar,en-US;q=0.7,en;q=0.3",
+}
 
 @mcp.tool()
 async def get_ayah_tafsir(surah_number: int, ayah_number: int) -> dict:
     """جلب التفسير المعتمد لآية محددة من موسوعة التفسير بالدرر السنية."""
     url = f"{BASE_URL}/{surah_number}/{ayah_number}"
-    async with httpx.AsyncClient(headers=HEADERS, follow_redirects=True) as client:
-        response = await client.get(url)
+    try:
+        # استخدام curl_cffi لمحاكاة متصفح Chrome الحقيقي
+        response = requests.get(url, headers=HEADERS, impersonate="chrome120", timeout=10)
         if response.status_code != 200:
             return {"error": f"فشل الجلب من المصدر (رمز الحالة: {response.status_code})"}
 
@@ -36,6 +40,8 @@ async def get_ayah_tafsir(surah_number: int, ayah_number: int) -> dict:
             "source": "موسوعة التفسير - الدرر السنية",
             "url": url
         }
+    except Exception as e:
+        return {"error": f"حدث خطأ أثناء الاتصال: {str(e)}"}
 
 @mcp.tool()
 async def search_dorar_tafsir(query: str) -> dict:
@@ -43,8 +49,8 @@ async def search_dorar_tafsir(query: str) -> dict:
     encoded_query = urllib.parse.quote(query)
     search_url = f"https://dorar.net/search/tafsir?q={encoded_query}"
     
-    async with httpx.AsyncClient(headers=HEADERS, follow_redirects=True) as client:
-        response = await client.get(search_url)
+    try:
+        response = requests.get(search_url, headers=HEADERS, impersonate="chrome120", timeout=10)
         if response.status_code != 200:
             return {"error": f"تعذر إجراء البحث (رمز الحالة: {response.status_code})"}
 
@@ -65,6 +71,8 @@ async def search_dorar_tafsir(query: str) -> dict:
             "results": results,
             "source": "الدرر السنية - محرك البحث"
         }
+    except Exception as e:
+        return {"error": f"حدث خطأ أثناء الاتصال: {str(e)}"}
 
 @mcp.tool()
 async def compare_tafsir_sources(surah_number: int, ayah_number: int, keywords: str = "") -> dict:
@@ -88,7 +96,7 @@ async def compare_tafsir_sources(surah_number: int, ayah_number: int, keywords: 
 # 2. إنشاء تطبيق FastAPI
 app = FastAPI(title="Dorar Tafsir MCP Endpoint")
 
-# 3. إتاحة جميع طلبات الاتصال الخارجية (CORS) لحل مشكلة المنع من قبل ChatGPT وPerplexity
+# 3. إتاحة جميع طلبات الاتصال الخارجية (CORS)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
