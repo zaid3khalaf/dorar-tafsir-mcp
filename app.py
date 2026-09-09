@@ -116,3 +116,7 @@ async def landing_page():
     </body>
     </html>
     """
+    @app.get("/search")
+async def search(query: str):
+    # هنا استدعاء وظيفة البحث في الدرر
+    return {"query": query, "result": "نتائج التفسير من الدرر السنية"}
