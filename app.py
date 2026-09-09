@@ -1,16 +1,15 @@
 import httpx
-from fastapi import FastAPI
-from fastapi.responses import HTMLResponse
+from fastapi import FastAPI, Request
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from mcp.server.fastmcp import FastMCP
 
 # 1. تهيئة خادم MCP
 mcp = FastMCP("Dorar-Tafsir-MCP")
 
-# 2. أدوات جلب التفسير والبحث
 @mcp.tool()
 async def get_ayah_tafsir(surah_number: int, ayah_number: int) -> dict:
-    """جلب التفسير المعتمد لآية محددة."""
+    """جلب التفسير المعتمد لآية محددة من الموسوعة القرآنية."""
     url = f"https://api.quran.com/api/v4/quran/tafsirs/16?verse_key={surah_number}:{ayah_number}"
     async with httpx.AsyncClient(timeout=10.0) as client:
         try:
@@ -55,9 +54,10 @@ async def search_dorar_tafsir(query: str) -> dict:
         except Exception as e:
             return {"error": str(e)}
 
-# 3. تطبيق FastAPI وإعداد CORS الكامل
+# 2. إنشاء تطبيق FastAPI
 app = FastAPI(title="Dorar Tafsir MCP")
 
+# 3. إعداد CORS الشامل (مهم جداً لقبول طلبات ChatGPT)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -66,8 +66,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 4. ربط مسار SSE الصريح المباشر
-app.mount("/sse", mcp.sse_app)
+# 4. دمج تطبيقي SSE
+sse_app = mcp.sse_app
+app.mount("/mcp", sse_app)
+app.mount("/sse", sse_app)
 
 @app.get("/", response_class=HTMLResponse)
 async def landing_page():
@@ -86,8 +88,8 @@ async def landing_page():
     <body>
         <div class="container">
             <h1>خادم التفسير والدراسات الدلالية MCP</h1>
-            <p>رابط الموصل المباشر الجديد:</p>
-            <code>https://dorar-tafsir-mcp-1.onrender.com/sse</code>
+            <p>رابط الموصل المباشر:</p>
+            <code>https://dorar-tafsir-mcp-1.onrender.com/sse/sse</code>
         </div>
     </body>
     </html>
