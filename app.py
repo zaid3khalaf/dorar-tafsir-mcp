@@ -4,9 +4,10 @@ import httpx
 from bs4 import BeautifulSoup
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
+from fastapi.middleware.cors import CORSMiddleware
 from mcp.server.fastmcp import FastMCP
 
-# تهيئة خادم MCP باسم الموسوعة
+# 1. تهيئة خادم MCP باسم الموسوعة
 mcp = FastMCP("Dorar Tafsir MCP")
 
 HEADERS = {
@@ -84,8 +85,19 @@ async def compare_tafsir_sources(surah_number: int, ayah_number: int, keywords: 
         "url": data.get("url")
     }
 
-# إنشاء تطبيق FastAPI وتضمين واجهة MCP SSE
+# 2. إنشاء تطبيق FastAPI
 app = FastAPI(title="Dorar Tafsir MCP Endpoint")
+
+# 3. إتاحة جميع طلبات الاتصال الخارجية (CORS) لحل مشكلة المنع من قبل ChatGPT وPerplexity
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# 4. تضمين واجهة MCP SSE
 app.mount("/mcp", mcp.sse_app)
 
 @app.get("/", response_class=HTMLResponse)
@@ -110,13 +122,14 @@ async def landing_page():
             <p>موصل معرفي سحابي لاستخراج نتائج التفسير وأقوال السلف من موسوعة <b>الدرر السنية</b> لخدمة أبحاث التطور الدلالي.</p>
             <div class="endpoint-box">
                 <strong>رابط الموصل (MCP Endpoint):</strong><br>
-                <code>https://YOUR-APP-NAME.onrender.com/mcp/sse</code>
+                <code>https://dorar-tafsir-mcp-1.onrender.com/mcp/sse</code>
             </div>
         </div>
     </body>
     </html>
     """
-    @app.get("/search")
+
+@app.get("/search")
 async def search(query: str):
-    # هنا استدعاء وظيفة البحث في الدرر
-    return {"query": query, "result": "نتائج التفسير من الدرر السنية"}
+    res = await search_dorar_tafsir(query)
+    return res
