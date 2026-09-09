@@ -1,15 +1,12 @@
 import httpx
-from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse, JSONResponse
-from fastapi.middleware.cors import CORSMiddleware
 from mcp.server.fastmcp import FastMCP
 
-# 1. تهيئة خادم MCP
-mcp = FastMCP("Dorar-Tafsir-MCP")
+# تهيئة خادم MCP
+mcp = FastMCP("Dorar-Tafsir-MCP", port=8000, host="0.0.0.0")
 
 @mcp.tool()
 async def get_ayah_tafsir(surah_number: int, ayah_number: int) -> dict:
-    """جلب التفسير المعتمد لآية محددة من الموسوعة القرآنية."""
+    """جلب التفسير المعتمد لآية محددة."""
     url = f"https://api.quran.com/api/v4/quran/tafsirs/16?verse_key={surah_number}:{ayah_number}"
     async with httpx.AsyncClient(timeout=10.0) as client:
         try:
@@ -54,47 +51,5 @@ async def search_dorar_tafsir(query: str) -> dict:
         except Exception as e:
             return {"error": str(e)}
 
-# 2. إنشاء تطبيق FastAPI
-app = FastAPI(title="Dorar Tafsir MCP")
-
-# 3. إعداد CORS الشامل (مهم جداً لقبول طلبات ChatGPT)
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# 4. دمج تطبيقي SSE
-sse_app = mcp.sse_app
-app.mount("/mcp", sse_app)
-app.mount("/sse", sse_app)
-
-@app.get("/", response_class=HTMLResponse)
-async def landing_page():
-    return """
-    <!DOCTYPE html>
-    <html lang="ar" dir="rtl">
-    <head>
-        <meta charset="UTF-8">
-        <title>Dorar Tafsir MCP Endpoint</title>
-        <style>
-            body { font-family: system-ui, sans-serif; background: #f8fafc; color: #1e293b; padding: 40px; }
-            .container { max-width: 800px; margin: auto; background: white; padding: 30px; border-radius: 12px; }
-            code { background: #f1f5f9; padding: 4px 8px; color: #0f766e; font-weight: bold; }
-        </style>
-    </head>
-    <body>
-        <div class="container">
-            <h1>خادم التفسير والدراسات الدلالية MCP</h1>
-            <p>رابط الموصل المباشر:</p>
-            <code>https://dorar-tafsir-mcp-1.onrender.com/sse/sse</code>
-        </div>
-    </body>
-    </html>
-    """
-
-@app.get("/search")
-async def search(query: str):
-    return await search_dorar_tafsir(query)
+if __name__ == "__main__":
+    mcp.run(transport="sse")
